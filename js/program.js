@@ -16,7 +16,7 @@ export function programView() {
       return `<article class="card day-card">
         <a class="day-link" href="#program/${d.id}">
           <h2>${esc(d.name)}</h2>
-          <p class="muted">${esc(when)} · ${fmt(d.items.length)} حرکت</p>
+          <p class="muted">${esc(when)}، ${fmt(d.items.length)} حرکت</p>
           ${names.length ? `<p class="day-names">${names.map(esc).join('، ')}</p>` : ''}
         </a>
         <div class="reorder">

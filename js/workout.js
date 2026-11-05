@@ -11,7 +11,7 @@ function currentDayId(date) {
   const session = state.sessions[date];
   if (session) return session.dayId;
   if (date in dayChoice) return dayChoice[date];
-  return suggestDay(state.days, sessionList(), date);
+  return suggestDay(state.days, sessionList(), date, state.settings.cycle);
 }
 
 const historiesBefore = (date) => buildHistories(sessionList().filter((s) => s.date < date), timeIds());
@@ -43,7 +43,7 @@ function targetText(item, ex) {
   }
   if (ex?.kind === 'cardio' && item.targetWeight) parts.push(`سرعت ${fmt(item.targetWeight)}`);
   if (item.rest) parts.push(`استراحت ${fmt(item.rest)} ثانیه`);
-  return parts.join(' · ');
+  return parts.join('، ');
 }
 
 function setRow(ex, i, set, ph, removable) {
@@ -123,7 +123,7 @@ export function workoutView() {
         <a class="btn primary" href="#program">ساخت برنامه تمرینی</a>
       </div>`}
     ${planned ? `<div class="progress"><div class="progress-bar"><i style="width:${Math.min(100, (doneSets / planned) * 100)}%"></i></div><span>${fmt(doneSets)} از ${fmt(planned)} ست</span></div>` : ''}
-    ${!items.length && !extras.length && state.days.length ? '<p class="muted center pad">برای امروز تمرینی برنامه‌ریزی نشده. روز تمرین رو از بالا انتخاب کن یا یه حرکت اضافه کن.</p>' : ''}
+    ${!items.length && !extras.length && state.days.length ? '<p class="muted center pad">طبق چرخه تمرینت این روز استراحته. اگه تمرین می‌کنی، روزش رو از بالا انتخاب کن یا یه حرکت اضافه کن.</p>' : ''}
     ${cards}
     <button class="btn ghost full" data-act="ex-add">${icons.plus} افزودن حرکت به این جلسه</button>
     ${session ? `<label class="field note"><span>یادداشت جلسه</span><textarea rows="2" data-in="session-note" placeholder="درد، حال، هر چیزی که بعداً به کارت میاد">${esc(session.note || '')}</textarea></label>` : ''}

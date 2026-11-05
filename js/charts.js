@@ -106,8 +106,9 @@ export function tableView(headers, rows) {
 }
 
 // Attendance grid for the most recent weeks. Columns are weeks, rows Saturday to Friday.
-export function heatmap(dates, endDate, weeks = 20) {
-  const attended = new Set(dates);
+const CELL_TIPS = { on: 'باشگاه، ثبت‌شده', plan: 'باشگاه، طبق برنامه', home: 'تمرین در خانه', '': 'بدون تمرین' };
+
+export function heatmap(kindOfDay, endDate, weeks = 20) {
   const startOfThisWeek = parseDate(endDate);
   startOfThisWeek.setDate(startOfThisWeek.getDate() - (startOfThisWeek.getDay() + 1) % 7);
   const cells = [];
@@ -118,13 +119,14 @@ export function heatmap(dates, endDate, weeks = 20) {
       const key = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
       if (key > endDate) cells.push('<i class="cell future"></i>');
       else {
-        const on = attended.has(key);
-        cells.push(`<i class="cell ${on ? 'on' : ''}" data-tip="${esc(fmtShort(key))}: ${on ? 'باشگاه' : 'بدون باشگاه'}"></i>`);
+        const kind = kindOfDay(key);
+        cells.push(`<i class="cell ${kind}" data-tip="${esc(fmtShort(key))}: ${CELL_TIPS[kind]}"></i>`);
       }
     }
   }
-  return `<div class="heatmap" style="--weeks:${weeks}" role="img" aria-label="حضور در باشگاه در ${fmt(weeks)} هفته اخیر">${cells.join('')}</div>
-    <div class="legend"><span><i class="cell on"></i>باشگاه</span><span><i class="cell"></i>بدون باشگاه</span><span class="legend-end">ستون راست: هفته جاری</span></div>`;
+  return `<div class="heatmap" style="--weeks:${weeks}" role="img" aria-label="تقویم تمرین در ${fmt(weeks)} هفته اخیر">${cells.join('')}</div>
+    <div class="legend"><span><i class="cell on"></i>ثبت‌شده</span><span><i class="cell plan"></i>طبق برنامه</span><span><i class="cell home"></i>خانه</span><span><i class="cell"></i>بدون تمرین</span></div>
+    <p class="caption">هر ستون یک هفته است، از شنبه تا جمعه. ستون راست هفته جاریه.</p>`;
 }
 
 function showTip(text, x, y) {

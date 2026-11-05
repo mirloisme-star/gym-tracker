@@ -22,7 +22,7 @@ export function settingsView() {
   const last = s.lastBackupAt ? fmtShort(iso(new Date(s.lastBackupAt))) : 'هنوز نگرفتی';
   const trackers = s.trackers
     .map((t, i) => (t.archived ? '' : `<div class="tracker-edit">
-        <span><strong>${esc(t.name)}</strong><small>${TYPES[t.type]}${t.unit ? ` · ${esc(t.unit)}` : ''}</small></span>
+        <span><strong>${esc(t.name)}</strong><small>${TYPES[t.type]}${t.unit ? `، ${esc(t.unit)}` : ''}</small></span>
         <button class="icon-btn" data-act="tracker-del" data-i="${i}" aria-label="حذف ${esc(t.name)}">${icons.trash}</button>
       </div>`))
     .join('');
@@ -55,6 +55,7 @@ export function settingsView() {
     <section class="card">
       <h2>عمومی</h2>
       <label class="field"><span>استراحت پیش‌فرض (ثانیه)</span><input class="num" inputmode="numeric" data-in="default-rest" value="${s.defaultRest}"></label>
+      <label class="field"><span>روز استراحت بعد از هر دور برنامه</span><input class="num" inputmode="numeric" data-in="cycle-rest" value="${s.cycle?.rest ?? 0}"></label>
       <label class="field"><span>ظاهر</span>
         <select data-change="theme">${[['auto', 'مطابق گوشی'], ['dark', 'تیره'], ['light', 'روشن']].map(([k, v]) => `<option value="${k}" ${s.theme === k ? 'selected' : ''}>${v}</option>`).join('')}</select>
       </label>
@@ -111,6 +112,10 @@ export const settingsActions = {
 };
 
 export const settingsInputs = {
+  'cycle-rest': (el) => {
+    state.settings.cycle.rest = parseNum(el.value) || 0;
+    saveMeta('settings');
+  },
   'default-rest': (el) => {
     state.settings.defaultRest = parseNum(el.value) || 0;
     saveMeta('settings');

@@ -185,34 +185,53 @@ export function attendanceStats(dates, onDate) {
   return { streakWeeks: streak, longestGap, daysSinceLast: dates.length ? diffDays(onDate, dates[dates.length - 1]) : null };
 }
 
-export function muscleSets(sessionList, exercises, from, to, timeIds = new Set()) {
-  const byId = new Map(exercises.map((e) => [e.id, e]));
-  const counts = {};
-  for (const session of sessionList) {
-    if (session.date < from || session.date > to) continue;
-    for (const entry of session.entries || []) {
-      if (timeIds.has(entry.exerciseId)) continue;
-      const n = workSets(entry).length;
-      if (n) {
-        const muscle = byId.get(entry.exerciseId)?.muscle || 'سایر';
-        counts[muscle] = (counts[muscle] || 0) + n;
-      }
-    }
-  }
-  return counts;
-}
-
-// Weekday assignment wins. Without any, the program rotates after the last session.
-export function suggestDay(days, sessionList, date) {
+// Weekday assignment wins. Otherwise the program follows a cycle of training days and
+// rest days, counted on from the last logged session so picking another day re-anchors it.
+export function suggestDay(days, sessionList, date, cycle) {
   if (!days.length) return null;
   if (days.some((d) => d.weekdays?.length)) {
     return days.find((d) => d.weekdays?.includes(weekdayIndex(date)))?.id ?? null;
   }
+  const len = days.length + (cycle?.rest || 0);
   for (let i = sessionList.length - 1; i >= 0; i--) {
     const s = sessionList[i];
     if (s.date >= date || !hasWork(s)) continue;
     const at = days.findIndex((d) => d.id === s.dayId);
-    if (at >= 0) return days[(at + 1) % days.length].id;
+    if (at >= 0) return days[(at + (cycle ? diffDays(date, s.date) : 1)) % len]?.id ?? null;
   }
-  return days[0].id;
+  if (!cycle) return days[0].id;
+  if (date < cycle.start) return null;
+  return days[diffDays(date, cycle.start) % len]?.id ?? null;
+}
+
+// Training days of a repeating cycle between two dates, inclusive.
+export function planDates(start, from, to, len, rest) {
+  const out = [];
+  for (let d = from < start ? start : from; d <= to; d = addDays(d, 1)) {
+    if (diffDays(d, start) % len < len - rest) out.push(d);
+  }
+  return out;
+}
+
+// Combines the owner's reported history with what the app has logged since.
+export function journeyStats(journey, cycle, dayCount, attended, onDate) {
+  const { homeFrom, gymFrom, planEnd, planLen, planRest, missed } = journey;
+  const reported = planDates(gymFrom, gymFrom, planEnd, planLen, planRest);
+  const len = dayCount + (cycle?.rest || 0) || planLen;
+  const rest = cycle?.rest ?? planRest;
+  const going = new Set(attended.filter((d) => d > planEnd && d <= onDate));
+  // Today only counts once it's done; it isn't a miss while the day is still open.
+  const due = planDates(cycle?.start || gymFrom, addDays(planEnd, 1), addDays(onDate, -1), len, rest);
+  const planned = reported.length + new Set([...due, ...going]).size;
+  const missedSince = due.filter((d) => !going.has(d)).length;
+  const sessions = reported.length - missed + going.size;
+  return {
+    dayNumber: diffDays(onDate, homeFrom) + 1,
+    homeDays: diffDays(gymFrom, homeFrom),
+    gymDays: diffDays(onDate, gymFrom) + 1,
+    planned,
+    sessions,
+    missed: missed + missedSince,
+    adherence: planned ? (sessions / planned) * 100 : null,
+  };
 }

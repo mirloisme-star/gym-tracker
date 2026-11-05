@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { attendanceStats, buildHistories, e1rm, exerciseTrend, habitImpact, performanceByDate, setScore, suggestDay, weeklySeries } from '../js/stats.js';
+import { dayLoad, levelOf, programLoad } from '../js/body-map.js';
+import { attendanceStats, buildHistories, e1rm, exerciseTrend, habitImpact, journeyStats, performanceByDate, setScore, suggestDay, weeklySeries } from '../js/stats.js';
 import { addDays, parseNum, parseRepsText, repsToText, weekStart } from '../js/util.js';
 
 const set = (weight, reps, extra = {}) => ({ weight, reps, done: true, ...extra });
@@ -137,4 +138,45 @@ test('day suggestion prefers weekdays, otherwise rotates', () => {
   const weekly = [{ id: 'th', weekdays: [5] }];
   assert.equal(suggestDay(weekly, [], '2026-11-05'), 'th'); // Thursday
   assert.equal(suggestDay(weekly, [], '2026-11-06'), null);
+});
+
+test('the cycle anchor puts 14 Aban on day two, then day three, then rest', () => {
+  const days = [{ id: 'd1', items: [] }, { id: 'd2', items: [] }, { id: 'd3', items: [] }];
+  const cycle = { start: '2026-10-19', rest: 1 };
+  assert.equal(suggestDay(days, [], '2026-11-04', cycle), 'd1');
+  assert.equal(suggestDay(days, [], '2026-11-05', cycle), 'd2');
+  assert.equal(suggestDay(days, [], '2026-11-06', cycle), 'd3');
+  assert.equal(suggestDay(days, [], '2026-11-07', cycle), null); // rest
+  assert.equal(suggestDay(days, [], '2026-11-08', cycle), 'd1');
+  // Choosing another day re-anchors what comes next.
+  assert.equal(suggestDay(days, [session('2026-11-05', [set(50, 5)], 'x', 'd1')], '2026-11-06', cycle), 'd2');
+});
+
+test('journey matches the reported history and counts what comes after it', () => {
+  const journey = { homeFrom: '2026-09-11', gymFrom: '2026-10-18', planEnd: '2026-11-04', planLen: 4, planRest: 1, missed: 2 };
+  const cycle = { start: '2026-10-19', rest: 1 };
+  const now = journeyStats(journey, cycle, 3, [], '2026-11-05');
+  assert.equal(now.homeDays, 37);
+  assert.equal(now.dayNumber, 56);
+  assert.equal(now.planned, 14);
+  assert.equal(now.sessions, 12);
+  assert.equal(now.missed, 2);
+  const trained = journeyStats(journey, cycle, 3, ['2026-11-05'], '2026-11-05');
+  assert.equal(trained.planned, 15);
+  assert.equal(trained.sessions, 13);
+  const skipped = journeyStats(journey, cycle, 3, ['2026-11-05'], '2026-11-07');
+  assert.equal(skipped.planned, 16); // the 6th was due and missed, the 7th is rest
+  assert.equal(skipped.missed, 3);
+});
+
+test('program load covers each region once per cycle, scaled to a week', () => {
+  const exercises = [{ id: 'a', name: 'سرشانه دمبل جفت پرس', muscle: 'سرشانه' }, { id: 'b', name: 'حرکت تازه', muscle: 'ساق' }, { id: 'c', name: 'تردمیل', muscle: 'کاردیو' }];
+  const days = [{ items: [{ exerciseId: 'a', sets: 4 }, { exerciseId: 'b', sets: 2 }, { exerciseId: 'c', sets: 1 }] }, { items: [] }, { items: [] }];
+  const load = programLoad(days, exercises, 1);
+  assert.equal(load.frontDelt.sets, 4 * (7 / 4));
+  assert.equal(load.triceps.sets, 2 * (7 / 4)); // secondary counts half
+  assert.equal(load.calves.sets, 2 * (7 / 4)); // falls back to the chosen muscle
+  assert.equal(Object.keys(load).includes('cardio'), false);
+  assert.deepEqual([0, 2, 5, 10, 14.9, 15].map(levelOf), [0, 1, 2, 3, 3, 4]);
+  assert.equal(dayLoad(days[0], exercises).frontDelt.sets, 4);
 });

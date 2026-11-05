@@ -27,7 +27,23 @@ const defaultSettings = () => ({
   defaultRest: 90,
   theme: 'auto',
   lastBackupAt: null,
+  // Reported by the owner, not logged set by set. planEnd is the last day this summary covers.
+  journey: { homeFrom: '2026-09-11', gymFrom: '2026-10-18', planEnd: '2026-11-04', planLen: 4, planRest: 1, missed: 2 },
+  // Anchored so that 14 Aban is day two, as the owner reported.
+  cycle: { start: '2026-10-19', rest: 1 },
 });
+
+// The reported history and the cycle anchor come from the code, so a correction reaches
+// phones that already saved older values. Only the number of rest days is a user setting.
+function mergeSettings(saved) {
+  const defaults = defaultSettings();
+  return {
+    ...defaults,
+    ...saved,
+    journey: defaults.journey,
+    cycle: { ...defaults.cycle, rest: saved?.cycle?.rest ?? defaults.cycle.rest },
+  };
+}
 
 export const state = { exercises: [], days: [], settings: defaultSettings(), sessions: {}, daily: {} };
 
@@ -72,7 +88,7 @@ export async function initStore() {
   db = await openDb();
   state.exercises = (await getMeta('exercises')) || [];
   state.days = (await getMeta('days')) || [];
-  state.settings = { ...defaultSettings(), ...((await getMeta('settings')) || {}) };
+  state.settings = mergeSettings(await getMeta('settings'));
   state.sessions = Object.fromEntries((await getAll('sessions')).map((s) => [s.date, s]));
   state.daily = Object.fromEntries((await getAll('daily')).map((d) => [d.date, d]));
   // Without this the browser may evict the data when the phone runs low on space.
@@ -161,7 +177,7 @@ export async function restoreBackup(obj) {
   });
   state.exercises = d.exercises;
   state.days = d.days;
-  state.settings = { ...defaultSettings(), ...d.settings };
+  state.settings = mergeSettings(d.settings);
   state.sessions = d.sessions;
   state.daily = d.daily;
 }

@@ -1,6 +1,6 @@
 import { bindChartEvents } from './charts.js';
 import { dailyActions, dailyInputs, dailyView } from './daily.js';
-import { dashboardActions, dashboardChanges, dashboardView } from './dashboard.js';
+import { afterDashboard, dashboardActions, dashboardChanges, dashboardView } from './dashboard.js';
 import { dayEditorView, programActions, programChanges, programInputs, programView } from './program.js';
 import { seedProgram } from './seed.js';
 import { applyTheme, settingsActions, settingsChanges, settingsInputs, settingsSubmits, settingsView } from './settings.js';
@@ -42,6 +42,7 @@ app.render = () => {
   document.getElementById('tabs').innerHTML = TABS.map(
     ([id, label, icon]) => `<a href="#${id}" ${id === tab || (tab === 'settings' && id === 'program') ? 'aria-current="page"' : ''}>${icon}<span>${label}</span></a>`,
   ).join('');
+  if (tab === 'stats') afterDashboard();
   const key = `${tab}/${sub || ''}`;
   if (key !== lastRoute) {
     if (lastRoute) scrollTo(0, 0);
