@@ -1,5 +1,5 @@
 import { LEVEL_LIMITS, REGIONS, dayLoad, levelOf, loggedLoad, programLoad } from './body-map.js';
-import { faceBody, syncBody } from './body.js';
+import { bodyChart } from './body-svg.js';
 import { barChart, heatmap, lineChart, resetCharts, tableView } from './charts.js';
 import { MIN_GROUP, attendanceStats, buildHistories, exerciseTrend, habitImpact, hasWork, journeyStats, performanceByDate, periodTotals, planDates, suggestDay, weeklySeries } from './stats.js';
 import { activeTrackers, attendedDates, exerciseById, kindOf, sessionList, setText, state, timeIds } from './store.js';
@@ -218,12 +218,7 @@ function bodySection(c) {
   return `<section class="card body-card">
     <div class="segments small" role="group" aria-label="داده روی بدن">${BODY_MODES.map(([k, l]) => `<button aria-pressed="${view.bodyMode === k}" data-act="body-mode" data-mode="${k}">${l}</button>`).join('')}</div>
     <p class="caption">${esc(bodyCaption(c))}</p>
-    <div id="body3d" class="body-stage">
-      <div class="body-face">
-        <button class="btn small" data-act="body-face" data-side="front">جلو</button>
-        <button class="btn small" data-act="body-face" data-side="back">پشت</button>
-      </div>
-    </div>
+    ${bodyChart(Object.fromEntries(Object.keys(REGIONS).map((r) => [r, levelOf(load[r]?.sets)])), picked)}
     <div class="heat-legend" aria-label="راهنمای رنگ">
       ${[['0', 'بدون کار'], ['1', `زیر ${fmt(a)}`], ['2', `${fmt(a)}–${fmt(b)}`], ['3', `${fmt(b)}–${fmt(d)}`], ['4', `${fmt(d)}+`]].map(([n, l]) => `<span><i style="background:var(--heat-${n})"></i>${l}</span>`).join('')}
       <small>${esc(unit)}</small>
@@ -231,7 +226,7 @@ function bodySection(c) {
     <div class="body-detail" aria-live="polite">
       ${picked ? `<h2>${esc(REGIONS[picked])}</h2>
         ${row ? `<p class="body-sets"><b>${fmt(row.sets)}</b> ${esc(unit)}</p><ul class="body-list">${exerciseRows}</ul>` : '<p class="muted">توی این نما کار مستقیمی نداره.</p>'}`
-        : '<p class="muted">مدل رو با کشیدن بچرخون و روی هر عضله بزن تا حرکت‌هاش رو ببینی.</p>'}
+        : '<p class="muted">روی هر عضله بزن تا تعداد ست و حرکت‌هاش رو ببینی.</p>'}
     </div>
   </section>
 
@@ -383,24 +378,6 @@ export function dashboardView() {
     ${content}`;
 }
 
-// Runs after each render; the 3D figure needs its container to exist in the page.
-export function afterDashboard() {
-  const host = document.getElementById('body3d');
-  if (!host) return;
-  const { load } = bodyLoad(collect());
-  const levels = Object.fromEntries(Object.keys(REGIONS).map((r) => [r, levelOf(load[r]?.sets)]));
-  syncBody(host, {
-    levels,
-    picked: view.region,
-    pick: (region) => {
-      view.region = region;
-      app.render();
-    },
-  }).then((ok) => {
-    if (!ok && host.isConnected) host.innerHTML = '<p class="muted pad center">این دستگاه مدل سه‌بعدی رو پشتیبانی نمی‌کنه. فهرست عضلات پایین همون اطلاعات رو داره.</p>';
-  });
-}
-
 export const dashboardActions = {
   'stats-range': (el) => {
     view.range = Number(el.dataset.n);
@@ -415,11 +392,10 @@ export const dashboardActions = {
     app.render();
   },
   'body-pick': (el) => {
-    view.region = el.dataset.region;
+    view.region = view.region === el.dataset.region ? null : el.dataset.region;
     app.render();
-    document.querySelector('.body-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (el.classList.contains('hbar')) document.querySelector('.body-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   },
-  'body-face': (el) => faceBody(el.dataset.side === 'front'),
   'ex-stats': (el) => {
     view.exercise = el.dataset.ex;
     view.section = 'exercises';

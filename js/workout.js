@@ -1,6 +1,6 @@
 import { buildHistories, setScore, suggestDay, workSets } from './stats.js';
 import { ensureEntry, ensureSession, exerciseById, kindOf, saveSession, sessionList, setText, state, timeIds } from './store.js';
-import { startTimer } from './timer.js';
+import { restLabel, startTimer } from './timer.js';
 import { app, dateBar, icons, pickExercise, toast, ui } from './ui.js';
 import { esc, fmt, fmtShort, parseNum, today } from './util.js';
 
@@ -145,6 +145,17 @@ function setAt(exId, i) {
   return { entry, set: entry.sets[i] };
 }
 
+// What comes after this rest: the next set of the same exercise, or the next unfinished one.
+function nextUp(exId, entry, dayItem) {
+  const rows = Math.max(dayItem?.sets || 0, entry.sets.length);
+  const done = entry.sets.filter((s) => s.done).length;
+  if (done < rows) return restLabel(done + 1, rows, exerciseById(exId)?.name || '');
+  const items = state.days.find((d) => d.id === currentDayId(ui.date))?.items || [];
+  const session = state.sessions[ui.date];
+  const next = items.find((it) => (session?.entries.find((e) => e.exerciseId === it.exerciseId)?.sets.filter((s) => s.done).length || 0) < (it.sets || 1));
+  return next ? restLabel(Infinity, 0, exerciseById(next.exerciseId)?.name || '') : 'آخرین ست امروز بود';
+}
+
 function restFor(exId) {
   const day = state.days.find((d) => d.id === currentDayId(ui.date));
   return day?.items.find((it) => it.exerciseId === exId)?.rest ?? state.settings.defaultRest;
@@ -191,7 +202,7 @@ export const workoutActions = {
       const earlierToday = workSets(entry).filter((s) => s !== set).map((s) => setScore(hist, s.weight, s.reps));
       if (score > best && score > Math.max(0, ...earlierToday)) toast(`رکورد جدید! ${setText(ex, set)}`, 'win');
     }
-    startTimer(restFor(exId));
+    startTimer(restFor(exId), nextUp(exId, entry, dayItem));
     app.render();
   },
   'set-warm': (el) => {

@@ -1,4 +1,4 @@
-// Which regions of the 3D body each exercise trains, and how many sets they get. Pure, no DOM.
+// Which regions of the body chart each exercise trains, and how many sets they get. Pure, no DOM.
 import { workSets } from './stats.js';
 
 export const REGIONS = {

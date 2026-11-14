@@ -1,16 +1,15 @@
 // Bump VERSION whenever any file below changes, so phones pick up the new build.
-const VERSION = 'gym-v2';
+const VERSION = 'gym-v4';
 const FILES = [
   '.',
   'index.html',
   'manifest.webmanifest',
   'css/style.css',
   'js/app.js',
-  'js/body.js',
   'js/body-map.js',
+  'js/body-paths.js',
+  'js/body-svg.js',
   'js/charts.js',
-  'vendor/three.module.min.js',
-  'assets/body.bin',
   'js/daily.js',
   'js/dashboard.js',
   'js/program.js',
