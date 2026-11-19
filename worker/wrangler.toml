@@ -1,0 +1,15 @@
+# The GapGPT key is NOT here. It is stored with: npx wrangler secret put GAPGPT_KEY
+name = "gym-coach"
+main = "index.js"
+compatibility_date = "2026-11-01"
+
+[vars]
+ALLOWED_ORIGINS = "https://mirloisme-star.github.io,http://localhost:4173"
+PER_IP_DAILY = "8"
+GLOBAL_DAILY = "300"
+# MODEL = "claude-sonnet-4-5"   # optional; without it the worker picks from the key's models
+
+# Daily request counters and the cached model choice.
+[[kv_namespaces]]
+binding = "LIMITS"
+id = "23072a784c394a0b856d66be4d6325e2"

@@ -64,6 +64,8 @@ const longFmt = fa({ weekday: 'long', day: 'numeric', month: 'long' });
 const shortFmt = fa({ day: 'numeric', month: 'long' });
 export const fmtLong = (s) => longFmt.format(parseDate(s));
 export const fmtShort = (s) => shortFmt.format(parseDate(s));
+const dayFmt = fa({ day: 'numeric' });
+export const fmtDay = (s) => dayFmt.format(parseDate(s));
 
 export const median = (arr) => {
   if (!arr.length) return null;

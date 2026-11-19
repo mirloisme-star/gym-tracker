@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { dayLoad, levelOf, programLoad } from '../js/body-map.js';
 import { attendanceStats, buildHistories, e1rm, exerciseTrend, habitImpact, journeyStats, performanceByDate, setScore, suggestDay, weeklySeries } from '../js/stats.js';
+import { freshJourney } from '../js/store.js';
 import { addDays, parseNum, parseRepsText, repsToText, weekStart } from '../js/util.js';
 
 const set = (weight, reps, extra = {}) => ({ weight, reps, done: true, ...extra });
@@ -179,4 +180,19 @@ test('program load covers each region once per cycle, scaled to a week', () => {
   assert.equal(Object.keys(load).includes('cardio'), false);
   assert.deepEqual([0, 2, 5, 10, 14.9, 15].map(levelOf), [0, 1, 2, 3, 3, 4]);
   assert.equal(dayLoad(days[0], exercises).frontDelt.sets, 4);
+});
+
+test('a new user starts with no reported history and counts only logged days', () => {
+  const journey = freshJourney('2026-11-19', 4, 1);
+  const cycle = { start: '2026-11-19', rest: 1 };
+  const first = journeyStats(journey, cycle, 3, [], '2026-11-19');
+  assert.equal(first.homeDays, 0);
+  assert.equal(first.dayNumber, 1);
+  assert.equal(first.planned, 0); // today isn't due until it's over
+  assert.equal(first.adherence, null);
+  const later = journeyStats(journey, cycle, 3, ['2026-11-19', '2026-11-20'], '2026-11-24');
+  assert.equal(later.planned, 4); // 19, 20, 21 due; 22 rest; 23 due
+  assert.equal(later.sessions, 2);
+  assert.equal(later.missed, 2);
+  assert.equal(suggestDay([{ id: 'a' }, { id: 'b' }], [], '2026-11-19', { start: null, rest: 1 }), 'a');
 });

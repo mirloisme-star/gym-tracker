@@ -4,7 +4,7 @@ A personal gym tracker for one user, used on an Android phone at the gym. It is 
 
 - **Live app:** https://mirloisme-star.github.io/gym-tracker/
 - **Repository:** https://github.com/mirloisme-star/gym-tracker (branch `main`, deployed through GitHub Pages)
-- **Current version:** service worker `gym-v4`, commit `beb47d9` (2026-11-14)
+- **Current version:** service worker `gym-v6` (not yet published)
 
 ## Timeline
 
@@ -13,8 +13,21 @@ A personal gym tracker for one user, used on an Android phone at the gym. It is 
 | 2026-11-05 | `00be408` | First version: the program, set logging, the daily log, the dashboard, backup and offline mode. |
 | 2026-11-05 | `1ace103` | Added the training history, a redesigned stats section and a first 3D muscle map. |
 | 2026-11-14 | `beb47d9` | Full-screen rest timer. The 3D body was replaced by a 2D front and back muscle map. |
+| 2026-11-19 | (pending) | Sporty redesign, home screen, onboarding for new users with 4 program templates, daily AI coach (GapGPT, user's own key), finish-workout screen, post-workout photos, new app icon and welcome photo. |
 
 ## What works
+
+### Home tab (new)
+- Greeting, the AI coach's daily message, a weekly goal ring with week streak, a 7-day strip, today's workout card with an estimated duration, and recent records.
+
+### First run (new)
+- New users go through onboarding: name, goal, level, a program template (full body 3-day, upper/lower 4-day, push/pull/legs, the owner's 3-day split, or empty) and a weekly goal. A backup can be restored from the welcome screen.
+
+### AI coach (new)
+- Works for everyone without a key: the app calls the owner's Cloudflare Worker `https://gym-coach.mirloisme.workers.dev/coach` (code in `worker/`), which holds the owner's GapGPT key as a secret (`wrangler secret put GAPGPT_KEY`) and picks a model from the key's list (currently `claude-opus-5-5`). Limits: allowed origins only, facts capped at 8000 characters, 8 messages per IP per day, 300 per day in total (KV namespace `LIMITS`). A user can still enter their own GapGPT key in settings to use it directly. Once a day a summary of the last 14 days (sessions, records, trends, habits) is sent and the model writes 2–4 Persian sentences. The key stays on the phone, never in backups or in the public code.
+
+### Finish workout and photos (new)
+- "پایان تمرین" shows sets, volume, minutes, records and the muscles worked, and offers a selfie. The photo downloads to the gallery and a small copy is kept for before/after comparison in the stats tab.
 
 ### Workout tab
 - Shows the user's three-day program, loaded from their paper plan in `js/seed.js`.
@@ -60,12 +73,15 @@ A personal gym tracker for one user, used on an Android phone at the gym. It is 
 - Vanilla JavaScript with ES modules and no build step. Data is stored in IndexedDB.
 - The interface is right-to-left Persian. It uses the Vazirmatn font with Persian digits and the Persian calendar.
 - After any change, bump `VERSION` in `sw.js`, and add new files to its `FILES` list.
-- Tests: `npm test` (18 tests, all passing).
+- Tests: `npm test` (19 tests, all passing).
 - **Muscle artwork:** from `react-native-body-highlighter` (MIT License, © 2022 ELABBASSI Hicham). `js/body-paths.js` is built with `node tools/build-body-paths.cjs <package folder>`.
   - The artwork has one deltoid per view. `js/body-svg.js` cuts it into the side head and the front or rear head.
   - The infraspinatus counts as rear delt.
 
 ## Open items
+
+- **AI coach:** tested live through the worker on 2026-11-19, from the app on localhost. Not yet tested from inside Iran: workers.dev may be filtered there; a custom domain would fix that.
+- **Photo download on a real phone:** verify that the picture appears in the gallery.
 
 - **Not tested on a real phone:** beep volume, vibration and the screen wake lock. The beep follows the phone's media volume.
 - **Home-phase length not confirmed:** the user first said 31 days, but the dates give 37. The app shows 37.

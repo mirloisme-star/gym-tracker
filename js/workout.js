@@ -1,8 +1,12 @@
-import { buildHistories, setScore, suggestDay, workSets } from './stats.js';
+import { REGIONS } from './body-map.js';
+import { bodyChart } from './body-svg.js';
+import { sessionSummary } from './home.js';
+import { photoButton } from './photo.js';
+import { buildHistories, hasWork, setScore, suggestDay, workSets } from './stats.js';
 import { ensureEntry, ensureSession, exerciseById, kindOf, saveSession, sessionList, setText, state, timeIds } from './store.js';
-import { restLabel, startTimer } from './timer.js';
+import { restLabel, startTimer, stopTimer } from './timer.js';
 import { app, dateBar, icons, pickExercise, toast, ui } from './ui.js';
-import { esc, fmt, fmtShort, parseNum, today } from './util.js';
+import { esc, fmt, fmtCompact, fmtShort, parseNum, today } from './util.js';
 
 // A day picked before anything is logged; there's no session to hold it yet.
 const dayChoice = {};
@@ -126,6 +130,7 @@ export function workoutView() {
     ${!items.length && !extras.length && state.days.length ? '<p class="muted center pad">طبق چرخه تمرینت این روز استراحته. اگه تمرین می‌کنی، روزش رو از بالا انتخاب کن یا یه حرکت اضافه کن.</p>' : ''}
     ${cards}
     <button class="btn ghost full" data-act="ex-add">${icons.plus} افزودن حرکت به این جلسه</button>
+    ${hasWork(session) ? `<button class="btn primary big full" data-act="workout-finish">${icons.flag} پایان تمرین</button>` : ''}
     ${session ? `<label class="field note"><span>یادداشت جلسه</span><textarea rows="2" data-in="session-note" placeholder="درد، حال، هر چیزی که بعداً به کارت میاد">${esc(session.note || '')}</textarea></label>` : ''}
     <p class="hint">مقدار کم‌رنگ پیشنهاد از جلسه قبله. اگه همون رو زدی فقط تیک بزن. با لمس شماره ست، اون ست «گرم‌کردن» می‌شه و توی آمار حساب نمی‌شه.</p>`;
 }
@@ -161,7 +166,50 @@ function restFor(exId) {
   return day?.items.find((it) => it.exerciseId === exId)?.rest ?? state.settings.defaultRest;
 }
 
+// The end-of-workout screen: what was done, which muscles, and the photo prompt.
+function finishDialog(date) {
+  const sum = sessionSummary(date);
+  if (!sum) return;
+  const levels = Object.fromEntries(sum.regions.map((r) => [r, 3]));
+  const dlg = document.getElementById('dialog');
+  dlg.className = 'finish';
+  dlg.innerHTML = `<div class="finish-body">
+    <span class="finish-badge">${icons.trophy}</span>
+    <h2>آفرین! تمرین تموم شد</h2>
+    <p class="muted">${esc(state.days.find((d) => d.id === state.sessions[date].dayId)?.name || 'جلسه آزاد')}، ${esc(fmtShort(date))}</p>
+    <div class="stat-row">
+      <div><b>${fmt(sum.sets)}</b><small>ست</small></div>
+      <div><b>${fmtCompact(sum.volume)}</b><small>کیلو حجم</small></div>
+      <div><b>${sum.minutes != null ? fmt(sum.minutes) : '–'}</b><small>دقیقه</small></div>
+      <div><b>${fmt(sum.prs)}</b><small>رکورد</small></div>
+    </div>
+    ${sum.regions.length ? `<div class="finish-body-map">${bodyChart(levels, null)}</div>
+      <p class="caption center">${sum.regions.map((r) => REGIONS[r]).join('، ')}</p>` : ''}
+    ${photoButton(date)}
+    <button class="btn ghost full" data-act="dialog-close">بستن</button>
+  </div>`;
+  if (!dlg.open) dlg.showModal();
+}
+
+// A photo taken from the finish screen refreshes it, so the new picture shows right away.
+document.addEventListener('photo-saved', (e) => {
+  const dlg = document.getElementById('dialog');
+  if (dlg.open && dlg.className === 'finish') finishDialog(e.detail);
+});
+
 export const workoutActions = {
+  'workout-finish': () => {
+    stopTimer();
+    const session = state.sessions[ui.date];
+    session.finishedAt = Date.now();
+    saveSession(ui.date);
+    finishDialog(ui.date);
+  },
+  'dialog-close': () => {
+    const dlg = document.getElementById('dialog');
+    dlg.close();
+    dlg.className = '';
+  },
   'day-pick': (el) => {
     const dayId = el.dataset.day || null;
     dayChoice[ui.date] = dayId;

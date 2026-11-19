@@ -199,7 +199,7 @@ export function suggestDay(days, sessionList, date, cycle) {
     const at = days.findIndex((d) => d.id === s.dayId);
     if (at >= 0) return days[(at + (cycle ? diffDays(date, s.date) : 1)) % len]?.id ?? null;
   }
-  if (!cycle) return days[0].id;
+  if (!cycle?.start) return days[0].id;
   if (date < cycle.start) return null;
   return days[diffDays(date, cycle.start) % len]?.id ?? null;
 }

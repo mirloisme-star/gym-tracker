@@ -1,29 +1,32 @@
 import { bindChartEvents } from './charts.js';
 import { dailyActions, dailyInputs, dailyView } from './daily.js';
 import { dashboardActions, dashboardChanges, dashboardView } from './dashboard.js';
+import { homeActions, homeView } from './home.js';
+import { onboardingActions, onboardingInputs, onboardingView } from './onboarding.js';
+import { photoChanges } from './photo.js';
 import { dayEditorView, programActions, programChanges, programInputs, programView } from './program.js';
-import { seedProgram } from './seed.js';
 import { applyTheme, settingsActions, settingsChanges, settingsInputs, settingsSubmits, settingsView } from './settings.js';
-import { initStore, setWriteErrorHandler } from './store.js';
+import { initStore, setWriteErrorHandler, state } from './store.js';
 import { timerActions } from './timer.js';
 import { app, dateActions, icons, toast } from './ui.js';
 import { workoutActions, workoutInputs, workoutView } from './workout.js';
 
-const actions = { ...dateActions, ...workoutActions, ...dailyActions, ...programActions, ...settingsActions, ...timerActions, ...dashboardActions };
-const inputs = { ...workoutInputs, ...dailyInputs, ...programInputs, ...settingsInputs };
-const changes = { ...programChanges, ...settingsChanges, ...dashboardChanges };
+const actions = { ...dateActions, ...workoutActions, ...dailyActions, ...programActions, ...settingsActions, ...timerActions, ...dashboardActions, ...homeActions, ...onboardingActions };
+const inputs = { ...workoutInputs, ...dailyInputs, ...programInputs, ...settingsInputs, ...onboardingInputs };
+const changes = { ...programChanges, ...settingsChanges, ...dashboardChanges, ...photoChanges };
 const submits = settingsSubmits;
 
 const TABS = [
+  ['home', 'خانه', icons.home],
   ['workout', 'تمرین', icons.dumbbell],
   ['daily', 'روزانه', icons.daily],
-  ['stats', 'آمار', icons.chart],
+  ['stats', 'گزارش', icons.chart],
   ['program', 'برنامه', icons.list],
 ];
 
 function route() {
-  const [tab = 'workout', sub] = location.hash.slice(1).split('/');
-  return { tab: tab || 'workout', sub };
+  const [tab = 'home', sub] = location.hash.slice(1).split('/');
+  return { tab: tab || 'home', sub };
 }
 
 let lastRoute = '';
@@ -31,21 +34,31 @@ let lastRoute = '';
 app.render = () => {
   const { tab, sub } = route();
   const main = document.getElementById('view');
+  const nav = document.getElementById('tabs');
+  if (!state.settings.profile) {
+    document.body.classList.add('first-run');
+    main.innerHTML = onboardingView();
+    nav.innerHTML = '';
+    return;
+  }
+  document.body.classList.remove('first-run');
   const views = {
+    home: homeView,
     workout: workoutView,
     daily: dailyView,
     stats: dashboardView,
     program: () => (sub ? dayEditorView(sub) : programView()),
     settings: settingsView,
   };
-  main.innerHTML = (views[tab] || workoutView)();
-  document.getElementById('tabs').innerHTML = TABS.map(
-    ([id, label, icon]) => `<a href="#${id}" ${id === tab || (tab === 'settings' && id === 'program') ? 'aria-current="page"' : ''}>${icon}<span>${label}</span></a>`,
+  main.innerHTML = (views[tab] || homeView)();
+  nav.innerHTML = TABS.map(
+    ([id, label, icon]) => `<a href="#${id}" ${id === tab || (tab === 'settings' && id === 'home') ? 'aria-current="page"' : ''}>${icon}<span>${label}</span></a>`,
   ).join('');
   const key = `${tab}/${sub || ''}`;
   if (key !== lastRoute) {
     if (lastRoute) scrollTo(0, 0);
     lastRoute = key;
+    if (tab === 'settings' && sub) document.getElementById(sub)?.scrollIntoView({ block: 'start' });
   }
 };
 
@@ -85,7 +98,6 @@ bindChartEvents();
 
 try {
   await initStore();
-  seedProgram();
   applyTheme();
   app.render();
 } catch (err) {

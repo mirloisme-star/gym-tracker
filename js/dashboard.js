@@ -2,7 +2,9 @@ import { LEVEL_LIMITS, REGIONS, dayLoad, levelOf, loggedLoad, programLoad } from
 import { bodyChart } from './body-svg.js';
 import { barChart, heatmap, lineChart, resetCharts, tableView } from './charts.js';
 import { MIN_GROUP, attendanceStats, buildHistories, exerciseTrend, habitImpact, hasWork, journeyStats, performanceByDate, periodTotals, planDates, suggestDay, weeklySeries } from './stats.js';
-import { activeTrackers, attendedDates, exerciseById, kindOf, sessionList, setText, state, timeIds } from './store.js';
+import { photoStrip } from './photo.js';
+import { activeTrackers, attendedDates, exerciseById, freshJourney, kindOf, sessionList, setText, state, timeIds } from './store.js';
+import { ring } from './home.js';
 import { app, icons } from './ui.js';
 import { addDays, diffDays, esc, fmt, fmtCompact, fmtShort, mean, today, weekStart } from './util.js';
 
@@ -47,9 +49,20 @@ function insightRow(kind, title, detail) {
 }
 
 // Everything derived from the current range, shared by the sections.
+// The journey is set at onboarding; this covers data restored from an unusual backup.
+function journeyOf() {
+  const s = state.settings;
+  if (s.journey) return s.journey;
+  const rest = s.cycle?.rest ?? 1;
+  return freshJourney(s.profile?.createdAt || today(), state.days.length + rest, rest);
+}
+
+const cycleText = () => `${fmt(state.days.length)} روز تمرین، ${fmt(state.settings.cycle?.rest ?? 0)} روز استراحت`;
+
 function collect() {
   const end = today();
-  const { journey, cycle } = state.settings;
+  const journey = journeyOf();
+  const { cycle } = state.settings;
   const worked = sessionList().filter(hasWork);
   const logged = attendedDates();
   const timed = timeIds();
@@ -74,20 +87,22 @@ function collect() {
 
 function journeyCard(c) {
   const j = c.journey;
-  const { homeFrom, gymFrom } = state.settings.journey;
+  const { homeFrom, gymFrom } = journeyOf();
+  const pct = j.adherence ?? 0;
   return `<section class="card journey">
     <div class="journey-top">
-      <div><span>پایبندی به برنامه</span><strong>${fmt(j.adherence)}٪</strong></div>
-      <div class="journey-day"><span>روز</span><b>${fmt(j.dayNumber)}</b><span>از شروع</span></div>
+      <div class="journey-ring">${ring(pct, 100, 96, `پایبندی ${Math.round(pct)} درصد`)}<b>${j.adherence == null ? '–' : `${fmt(j.adherence)}٪`}</b></div>
+      <div class="journey-text"><span>پایبندی به برنامه</span>
+        <p>${fmt(j.sessions)} جلسه از ${fmt(j.planned)} جلسه برنامه${j.missed ? `، ${fmt(j.missed)} غیبت` : ''}</p>
+        <div class="journey-day"><b>${fmt(j.dayNumber)}</b><span>روز از شروع</span></div></div>
     </div>
-    <p class="journey-sum">${fmt(j.sessions)} جلسه از ${fmt(j.planned)} جلسه برنامه، ${fmt(j.missed)} غیبت</p>
-    <div class="timeline" role="img" aria-label="${fmt(j.homeDays)} روز تمرین خانگی و ${fmt(j.gymDays)} روز باشگاه">
+    ${j.homeDays > 0 ? `<div class="timeline" role="img" aria-label="${fmt(j.homeDays)} روز تمرین خانگی و ${fmt(j.gymDays)} روز باشگاه">
       <i class="home" style="flex:${j.homeDays}"></i><i class="gym" style="flex:${j.gymDays}"></i>
     </div>
     <div class="timeline-labels">
       <div><span class="key home"></span><b>خانه: ${fmt(j.homeDays)} روز</b><small>کشش، انعطاف و کاردیو، هر روز</small><small>از ${esc(fmtShort(homeFrom))}</small></div>
-      <div><span class="key gym"></span><b>باشگاه: ${fmt(j.gymDays)} روز</b><small>۳ روز تمرین، ۱ روز استراحت</small><small>از ${esc(fmtShort(gymFrom))}</small></div>
-    </div>
+      <div><span class="key gym"></span><b>باشگاه: ${fmt(j.gymDays)} روز</b><small>${esc(cycleText())}</small><small>از ${esc(fmtShort(gymFrom))}</small></div>
+    </div>` : ''}
   </section>`;
 }
 
@@ -116,7 +131,7 @@ function buildInsights(c) {
   if (untrained.length) {
     rows.push({ rank: 2, html: insightRow('info', 'بدون کار مستقیم در برنامه', `${untrained.map((r) => REGIONS[r]).join('، ')}. اگه عمدیه مشکلی نیست.`) });
   }
-  if (c.journey.adherence >= 85) {
+  if (c.journey.planned >= 6 && c.journey.adherence >= 85) {
     rows.push({ rank: 3, html: insightRow('good', 'پایبندی خوب', `از ${fmt(c.journey.planned)} جلسه برنامه فقط ${fmt(c.journey.missed)} جلسه رو نرفتی.`) });
   }
   return rows.sort((x, y) => x.rank - y.rank).map((r) => r.html);
@@ -130,14 +145,14 @@ function overviewSection(c) {
   const inRange = c.union.filter((d) => d >= c.from && d <= c.end);
   // The reported absences have no dates, so they're spread evenly over the reported days.
   const reportedInRange = c.reported.filter((d) => d >= c.from).length;
-  const missedShare = c.reported.length ? (state.settings.journey.missed * reportedInRange) / c.reported.length : 0;
+  const missedShare = c.reported.length ? (journeyOf().missed * reportedInRange) / c.reported.length : 0;
   const sessionsInRange = inRange.length - missedShare;
   const att = attendanceStats(c.union, c.end);
   const prs = [...c.histories.values()].flat().filter((h) => h.pr && h.date >= c.from).length;
   const weeks = weeklySeries(c.worked, c.from, c.end, c.timed);
   const width = chartWidth();
   // The rate and the weekly chart only make sense from the day the gym started.
-  const gymFrom = state.settings.journey.gymFrom;
+  const gymFrom = journeyOf().gymFrom;
   const gymWeeks = Math.max(1, (diffDays(c.end, c.from > gymFrom ? c.from : gymFrom) + 1) / 7);
   const weekRows = [];
   for (let w = weeks[0].week > weekStart(gymFrom) ? weeks[0].week : weekStart(gymFrom); w <= c.end; w = addDays(w, 7)) {
@@ -146,9 +161,9 @@ function overviewSection(c) {
   }
   const planSet = new Set(c.reported);
   const loggedSet = new Set(c.logged);
-  const homeTo = addDays(state.settings.journey.gymFrom, -1);
-  const cellKind = (d) => (loggedSet.has(d) ? 'on' : planSet.has(d) ? 'plan' : d >= state.settings.journey.homeFrom && d <= homeTo ? 'home' : '');
-  const heatWeeks = Math.min(26, Math.max(14, Math.ceil(diffDays(c.end, state.settings.journey.homeFrom) / 7) + 1));
+  const homeTo = addDays(journeyOf().gymFrom, -1);
+  const cellKind = (d) => (loggedSet.has(d) ? 'on' : planSet.has(d) ? 'plan' : d >= journeyOf().homeFrom && d <= homeTo ? 'home' : '');
+  const heatWeeks = Math.min(26, Math.max(14, Math.ceil(diffDays(c.end, journeyOf().homeFrom) / 7) + 1));
   const insights = buildInsights(c);
   const hasVolume = weeks.some((w) => w.volume > 0);
 
@@ -170,14 +185,16 @@ function overviewSection(c) {
       ${heatmap(cellKind, c.end, heatWeeks)}
       <h3>جلسه در هر هفته</h3>
       ${barChart({ bars: weekRows.slice(-26), width, label: 'جلسه در هر هفته', format: fmt })}
-      <p class="caption">روزهای «طبق برنامه» از چرخه تمرینت حساب شدن. تاریخ ${fmt(state.settings.journey.missed)} غیبتت مشخص نیست، پس این نمودار ممکنه تا همین اندازه بیشتر از واقعیت نشون بده.</p>
+      ${journeyOf().missed ? `<p class="caption">روزهای «طبق برنامه» از چرخه تمرینت حساب شدن. تاریخ ${fmt(journeyOf().missed)} غیبتت مشخص نیست، پس این نمودار ممکنه تا همین اندازه بیشتر از واقعیت نشون بده.</p>` : ''}
     </section>
 
     ${hasVolume ? `<section class="card">
       <h2>حجم هفتگی (کیلو)</h2>
       ${barChart({ bars: weeks.slice(-26).map((w) => ({ date: w.week, value: w.volume, tip: `هفته ${fmtShort(w.week)}: ${fmt(w.volume)} کیلو، ${fmt(w.sets)} ست` })), width, label: 'حجم هفتگی' })}
       ${tableView(['هفته', 'جلسه', 'ست', 'حجم'], [...weeks].reverse().map((w) => [fmtShort(w.week), fmt(w.sessions), fmt(w.sets), fmt(w.volume)]))}
-    </section>` : ''}`;
+    </section>` : ''}
+
+    ${Object.keys(state.photos).length ? `<section class="card"><h2>${icons.camera} عکس‌های پیشرفت</h2>${photoStrip()}</section>` : ''}`;
 }
 
 const todayDay = (c) => {
@@ -198,7 +215,7 @@ function bodyCaption(c) {
     return day ? `تمرین امروز: ${day.name}` : 'امروز طبق چرخه روز استراحته.';
   }
   if (view.bodyMode === 'logged') return 'فقط ست‌هایی که توی اپ ثبت کردی، در بازه انتخاب‌شده.';
-  return 'کل برنامه فعلیت، با حساب چرخه ۳ روز تمرین و ۱ روز استراحت.';
+  return `کل برنامه فعلیت، با حساب چرخه ${cycleText()}.`;
 }
 
 function bodySection(c) {
@@ -371,7 +388,7 @@ export function dashboardView() {
   const c = collect();
   const showRange = view.section !== 'body' || view.bodyMode === 'logged';
   const content = { overview: overviewSection, body: bodySection, exercises: exerciseSection, habits: habitSection }[view.section](c);
-  return `<div class="page-head"><h1>آمار و روند</h1><a class="icon-btn" href="#settings" aria-label="تنظیمات">${icons.gear}</a></div>
+  return `<div class="page-head"><h1>گزارش پیشرفت</h1><a class="icon-btn" href="#settings" aria-label="تنظیمات">${icons.gear}</a></div>
     ${journeyCard(c)}
     <div class="segments" role="group" aria-label="بخش آمار">${SECTIONS.map(([k, l]) => `<button aria-pressed="${view.section === k}" data-act="stats-section" data-section="${k}">${l}</button>`).join('')}</div>
     ${showRange ? `<div class="chips" role="group" aria-label="بازه زمانی">${RANGES.map(([d, l]) => `<button class="chip" aria-pressed="${view.range === d}" data-act="stats-range" data-n="${d}">${l}</button>`).join('')}</div>` : ''}

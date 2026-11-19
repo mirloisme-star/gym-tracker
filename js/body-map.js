@@ -42,6 +42,25 @@ const BY_NAME = {
   'زیربغل دوبل جمع از بالا': [['lats'], ['biceps']],
   'H جفت نشسته': [['lats', 'traps'], ['biceps', 'rearDelt']],
   'پول آور ارنج صاف دمبل': [['lats'], ['triceps']],
+  // Exercises from the ready-made programs.
+  'پرس سینه دستگاه': [['chest'], ['frontDelt', 'triceps']],
+  'پرس سینه دمبل': [['chest'], ['frontDelt', 'triceps']],
+  'پرس سینه هالتر': [['chest'], ['frontDelt', 'triceps']],
+  'پرس بالاسینه دستگاه': [['chest', 'frontDelt'], ['triceps']],
+  'پرس بالاسینه دمبل': [['chest', 'frontDelt'], ['triceps']],
+  'زیربغل سیم‌کش از جلو': [['lats'], ['biceps', 'rearDelt']],
+  'قایقی سیم‌کش نشسته': [['lats', 'traps'], ['biceps', 'rearDelt']],
+  'زیربغل هالتر خم': [['lats', 'traps'], ['biceps', 'rearDelt', 'lowerBack']],
+  'سرشانه دمبل نشسته': [['frontDelt', 'sideDelt'], ['triceps', 'traps']],
+  'نشر از جانب دمبل': [['sideDelt'], ['traps']],
+  'جلوبازو دمبل ایستاده': [['biceps'], ['forearm']],
+  'پشت بازو سیم‌کش': [['triceps'], []],
+  'اسکات گابلت دمبل': [['quads', 'glutes'], ['hamstrings', 'abs']],
+  'اسکات هالتر': [['quads', 'glutes'], ['hamstrings', 'lowerBack', 'abs']],
+  'ددلیفت رومانیایی دمبل': [['hamstrings', 'glutes'], ['lowerBack', 'forearm']],
+  'لانج دمبل': [['quads', 'glutes'], ['hamstrings']],
+  'پشت پا خوابیده': [['hamstrings'], []],
+  'ساق نشسته دستگاه': [['calves'], []],
 };
 
 // New exercises fall back to the muscle chosen for them in the program editor.

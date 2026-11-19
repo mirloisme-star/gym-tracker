@@ -23,6 +23,7 @@ python3 -m http.server 4173
 ## تغییر کد
 
 - بعد از هر تغییر، مقدار `VERSION` توی `sw.js` رو عوض کن تا گوشی نسخه جدید رو بگیره. فایل جدید رو هم به لیست `FILES` همون‌جا اضافه کن.
-- برنامه اولیه توی `js/seed.js` فقط بار اول لود می‌شه. بعدش برنامه رو از داخل اپ ویرایش کن.
+- کاربر جدید موقع اولین باز کردن اپ یکی از برنامه‌های آماده `js/templates.js` رو انتخاب می‌کنه یا برنامه خالی می‌سازه.
+- مربی هوشمند از طریق سرور `worker/` روی Cloudflare به GapGPT وصل می‌شه. کلید GapGPT فقط به‌صورت secret روی Cloudflare ذخیره شده (`npx wrangler secret put GAPGPT_KEY` داخل پوشه `worker`) و هیچ‌وقت نباید توی کد گذاشته بشه، چون مخزن عمومیه. برای انتشار تغییرات سرور: `npx wrangler deploy` داخل پوشه `worker`.
 - تست‌ها با `npm test` اجرا می‌شن.
 - تصویر عضله‌ها از پکیج `react-native-body-highlighter` (مجوز MIT) گرفته شده. `js/body-paths.js` با `node tools/build-body-paths.cjs <پوشه پکیج>` ساخته می‌شه.

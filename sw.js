@@ -1,5 +1,5 @@
 // Bump VERSION whenever any file below changes, so phones pick up the new build.
-const VERSION = 'gym-v4';
+const VERSION = 'gym-v6';
 const FILES = [
   '.',
   'index.html',
@@ -10,13 +10,18 @@ const FILES = [
   'js/body-paths.js',
   'js/body-svg.js',
   'js/charts.js',
+  'js/coach.js',
+  'js/coach-prompt.js',
   'js/daily.js',
   'js/dashboard.js',
+  'js/home.js',
+  'js/onboarding.js',
+  'js/photo.js',
   'js/program.js',
-  'js/seed.js',
   'js/settings.js',
   'js/stats.js',
   'js/store.js',
+  'js/templates.js',
   'js/timer.js',
   'js/ui.js',
   'js/util.js',
@@ -25,6 +30,9 @@ const FILES = [
   'fonts/Vazirmatn-UI-FD-Bold.woff2',
   'icons/icon-192.png',
   'icons/icon-512.png',
+  'icons/icon-maskable-512.png',
+  'icons/apple-touch-icon.png',
+  'icons/welcome.jpg',
 ];
 
 self.addEventListener('install', (e) => {

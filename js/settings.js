@@ -1,3 +1,5 @@
+import { generateCoach, pickModel, testKey } from './coach.js';
+import { GOALS } from './onboarding.js';
 import { buildBackup, restoreBackup, saveMeta, state, validateBackup } from './store.js';
 import { app, icons, toast } from './ui.js';
 import { esc, fmt, fmtShort, iso, parseNum, today, uid } from './util.js';
@@ -26,8 +28,28 @@ export function settingsView() {
         <button class="icon-btn" data-act="tracker-del" data-i="${i}" aria-label="حذف ${esc(t.name)}">${icons.trash}</button>
       </div>`))
     .join('');
+  const ai = s.ai || {};
   const canShare = !!navigator.canShare?.({ files: [new File(['x'], 'x.json', { type: 'application/json' })] });
-  return `<div class="page-head"><a class="icon-btn" href="#program" aria-label="برگشت">${icons.right}</a><h1>تنظیمات</h1><span></span></div>
+  return `<div class="page-head"><a class="icon-btn" href="#home" aria-label="برگشت">${icons.right}</a><h1>تنظیمات</h1><span></span></div>
+    <section class="card">
+      <h2>پروفایل</h2>
+      <label class="field"><span>اسم</span><input data-in="profile-name" value="${esc(s.profile?.name || '')}" maxlength="30" placeholder="اسمت"></label>
+      <label class="field"><span>هدف</span><select data-change="profile-goal">${Object.entries(GOALS).map(([k, [t]]) => `<option value="${k}" ${s.profile?.goal === k ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
+      <label class="field"><span>هدف هفتگی (جلسه)</span><input class="num" inputmode="numeric" data-in="weekly-goal" value="${s.weeklyGoal}"></label>
+    </section>
+    <section class="card" id="ai">
+      <h2>${icons.spark} مربی هوشمند</h2>
+      <p class="muted">هر روز یه پیام کوتاه از روی تمرین‌ها و عادت‌هات ساخته می‌شه. مربی برای همه فعاله و به کلید نیازی نداری.</p>
+      <p class="muted">برای ساختن پیام، خلاصه‌ای از تمرین‌ها، عادت‌ها و اسمت از سرور مربی به GapGPT فرستاده می‌شه و جایی ذخیره نمی‌شه.</p>
+      <p class="muted">اگه کلید GapGPT خودت رو داری و می‌خوای مستقیم از حساب خودت استفاده کنی یا مدل رو خودت انتخاب کنی، اینجا بزنش. کلید فقط روی همین گوشی می‌مونه.</p>
+      <form class="add-tracker" data-submit="ai-key">
+        <input name="key" type="password" dir="ltr" autocomplete="off" placeholder="${ai.key ? 'کلید ذخیره شده. برای عوض کردن، کلید جدید رو بزن' : 'کلید API گپ جی‌پی‌تی'}" aria-label="کلید API">
+        <button class="btn primary full">${icons.key} ذخیره و امتحان کلید</button>
+      </form>
+      ${ai.key && ai.models?.length ? `<label class="field"><span>مدل</span>
+        <select dir="ltr" data-change="ai-model">${ai.models.map((m) => `<option ${m === ai.model ? 'selected' : ''}>${esc(m)}</option>`).join('')}</select></label>` : ''}
+      ${ai.key ? '<button class="btn ghost full" data-act="ai-remove">حذف کلید و خاموش کردن مربی</button>' : ''}
+    </section>
     <section class="card">
       <h2>بک‌آپ</h2>
       <p class="muted">داده‌هات فقط روی همین گوشی ذخیره می‌شن. اگه گوشی عوض بشه یا داده‌های مرورگر پاک بشه، فقط با این فایل برمی‌گردن.</p>
@@ -102,6 +124,12 @@ export const settingsActions = {
     installPrompt = null;
     app.render();
   },
+  'ai-remove': () => {
+    if (!confirm('کلید API از این گوشی پاک بشه؟')) return;
+    delete state.settings.ai;
+    saveMeta('settings');
+    app.render();
+  },
   'tracker-del': (el) => {
     const t = state.settings.trackers[Number(el.dataset.i)];
     if (!confirm(`«${t.name}» از لیست ثبت روزانه برداشته بشه؟ داده‌های قبلیش نگه داشته می‌شن.`)) return;
@@ -112,6 +140,17 @@ export const settingsActions = {
 };
 
 export const settingsInputs = {
+  'profile-name': (el) => {
+    state.settings.profile = { ...state.settings.profile, name: el.value.trim() };
+    saveMeta('settings');
+  },
+  'weekly-goal': (el) => {
+    const n = parseNum(el.value);
+    if (n >= 1 && n <= 7) {
+      state.settings.weeklyGoal = n;
+      saveMeta('settings');
+    }
+  },
   'cycle-rest': (el) => {
     state.settings.cycle.rest = parseNum(el.value) || 0;
     saveMeta('settings');
@@ -123,6 +162,16 @@ export const settingsInputs = {
 };
 
 export const settingsChanges = {
+  'ai-model': (el) => {
+    state.settings.ai.model = el.value;
+    saveMeta('settings');
+    state.coach = null;
+    toast(`مدل عوض شد: ${el.value}`);
+  },
+  'profile-goal': (el) => {
+    state.settings.profile = { ...state.settings.profile, goal: el.value };
+    saveMeta('settings');
+  },
   theme: (el) => {
     state.settings.theme = el.value;
     saveMeta('settings');
@@ -158,6 +207,22 @@ export const settingsChanges = {
 };
 
 export const settingsSubmits = {
+  'ai-key': async (form) => {
+    const key = form.elements.key.value.trim();
+    if (!key) return;
+    toast('در حال امتحان کلید…');
+    const { models, error } = await testKey(key);
+    if (error) {
+      toast(error, 'err');
+      return;
+    }
+    state.settings.ai = { key, models, model: pickModel(models) };
+    saveMeta('settings');
+    state.coach = null;
+    toast(`کلید درسته. مدل: ${state.settings.ai.model}`, 'win');
+    generateCoach({ force: true });
+    location.hash = '#home';
+  },
   'tracker-add': (form) => {
     const name = form.elements.name.value.trim();
     if (!name) return;
