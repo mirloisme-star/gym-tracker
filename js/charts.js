@@ -38,13 +38,15 @@ function frame(id, width, height, body, label) {
 }
 
 // points: [{ date, y, tip, mark }]; mark draws a dot, used for records.
-export function lineChart({ points, width, height = 180, label, format = fmtCompact, endLabel }) {
+// trend: an optional second, smoother line on the same scale, such as a moving average.
+export function lineChart({ points, width, height = 180, label, format = fmtCompact, endLabel, trend = null }) {
   const id = `c${nextId++}`;
   const plotW = width - MARGIN.left - MARGIN.right;
   const plotH = height - MARGIN.top - MARGIN.bottom;
   const first = points[0].date;
   const span = Math.max(1, diffDays(points.at(-1).date, first));
-  const ticks = niceTicks(Math.min(...points.map((p) => p.y)), Math.max(...points.map((p) => p.y)));
+  const all = [...points, ...(trend || [])];
+  const ticks = niceTicks(Math.min(...all.map((p) => p.y)), Math.max(...all.map((p) => p.y)));
   const lo = ticks[0];
   const hi = ticks.at(-1);
   const x = (d) => (points.length === 1 ? MARGIN.left + plotW / 2 : MARGIN.left + (diffDays(d, first) / span) * plotW);
@@ -61,7 +63,8 @@ export function lineChart({ points, width, height = 180, label, format = fmtComp
     .map((d, i) => `<text class="tick" x="${x(d)}" y="${height - 8}" text-anchor="${i === 0 ? (points.length === 1 ? 'middle' : 'start') : i === dateLabels.length - 1 ? 'end' : 'middle'}">${esc(fmtShort(d))}</text>`)
     .join('');
   const end = endLabel ?? format(points.at(-1).y);
-  const body = `${yAxis(ticks, y, width, format)}${points.length > 1 ? `<path class="area" d="${area}"/><path class="line" d="${path}"/>` : ''}${dots}
+  const trendPath = trend && trend.length > 1 ? trend.map((p, i) => `${i ? 'L' : 'M'}${x(p.date).toFixed(1)} ${y(p.y).toFixed(1)}`).join('') : '';
+  const body = `${yAxis(ticks, y, width, format)}${points.length > 1 ? `<path class="area" d="${area}"/><path class="line${trendPath ? ' faint' : ''}" d="${path}"/>` : ''}${trendPath ? `<path class="line trend" d="${trendPath}"/>` : ''}${dots}
     <text class="end-label" x="${Math.min(last.px, width - MARGIN.right)}" y="${Math.max(last.py - 10, 12)}" text-anchor="end">${esc(end)}</text>${xTicks}`;
   registry.set(id, coords);
   return frame(id, width, height, body, label);

@@ -2,11 +2,12 @@ import { LEVEL_LIMITS, REGIONS, dayLoad, levelOf, loggedLoad, programLoad } from
 import { bodyChart } from './body-svg.js';
 import { barChart, heatmap, lineChart, resetCharts, tableView } from './charts.js';
 import { MIN_GROUP, attendanceStats, buildHistories, exerciseTrend, habitImpact, hasWork, journeyStats, performanceByDate, periodTotals, planDates, suggestDay, weeklySeries } from './stats.js';
+import { buildFacts, movingAverage, weightSeries, weightStats } from './facts.js';
 import { photoStrip } from './photo.js';
-import { activeTrackers, attendedDates, exerciseById, freshJourney, kindOf, sessionList, setText, state, timeIds } from './store.js';
+import { activeTrackers, attendedDates, ensureDaily, exerciseById, freshJourney, saveDaily, kindOf, sessionList, setText, state, timeIds } from './store.js';
 import { ring } from './home.js';
 import { app, icons } from './ui.js';
-import { addDays, diffDays, esc, fmt, fmtCompact, fmtShort, mean, today, weekStart } from './util.js';
+import { addDays, diffDays, esc, fmt, fmtCompact, fmtShort, mean, parseNum, today, weekStart } from './util.js';
 
 const RANGES = [
   [30, '۳۰ روز'],
@@ -17,7 +18,8 @@ const RANGES = [
 ];
 const SECTIONS = [
   ['overview', 'نمای کلی'],
-  ['body', 'بدن'],
+  ['weight', 'وزن'],
+  ['body', 'عضله‌ها'],
   ['exercises', 'حرکت‌ها'],
   ['habits', 'عادت‌ها'],
 ];
@@ -26,7 +28,7 @@ const BODY_MODES = [
   ['today', 'امروز'],
   ['logged', 'ثبت‌شده'],
 ];
-const view = { section: 'overview', range: 90, exercise: null, tracker: null, bodyMode: 'program', region: null };
+const view = { topic: 'all', allFacts: false, section: 'overview', range: 90, exercise: null, tracker: null, bodyMode: 'program', region: null };
 
 const chartWidth = () => Math.min(innerWidth, 560) - 64;
 
@@ -42,10 +44,18 @@ function deltaText(now, before) {
   return `<small class="delta ${dir}">${arrow} ${fmt(Math.abs(pct))}٪ نسبت به دوره قبل</small>`;
 }
 
-function insightRow(kind, title, detail) {
-  const icon = { good: icons.good, warn: icons.alert, info: icons.info }[kind];
-  const tag = { good: 'خوب', warn: 'نیاز به توجه', info: 'نکته' }[kind];
-  return `<li class="insight ${kind}">${icon}<div><strong>${esc(title)}</strong><p>${esc(detail)}</p><small>${tag}</small></div></li>`;
+const TOPICS = [
+  ['all', 'همه'],
+  ['weight', 'وزن بدن'],
+  ['load', 'وزنه‌ها'],
+  ['records', 'رکوردها'],
+  ['compare', 'مقایسه'],
+  ['habits', 'عادت‌ها'],
+];
+const TOPIC_ICON = { weight: 'scale', load: 'dumbbell', records: 'trophy', compare: 'chart', habits: 'daily' };
+
+function factRow(f) {
+  return `<li class="insight ${f.tone}">${icons[TOPIC_ICON[f.topic]] || icons.info}<div><strong>${esc(f.title)}</strong>${f.detail ? `<p>${esc(f.detail)}</p>` : ''}<small>${esc(TOPICS.find(([k]) => k === f.topic)[1])}${f.date ? `، ${esc(fmtShort(f.date))}` : ''}</small></div></li>`;
 }
 
 // Everything derived from the current range, shared by the sections.
@@ -106,35 +116,26 @@ function journeyCard(c) {
   </section>`;
 }
 
-function buildInsights(c) {
-  const rows = [];
-  const improving = [];
-  for (const [id, hist] of c.histories) {
-    const name = exerciseById(id)?.name;
-    if (!name || hist.isTime) continue; // a fixed 12-minute walk isn't a plateau
-    const t = exerciseTrend(hist, c.end);
-    if (t.daysSinceLast > 30) continue;
-    if (t.status === 'down') {
-      rows.push({ rank: 0, html: insightRow('warn', `افت در ${name}`, `میانگین ۳ جلسه آخر ${fmt(Math.abs(t.pct))}٪ پایین‌تر از ۳ جلسه قبلشه.`) });
-    } else if (t.stalled) {
-      rows.push({ rank: 1, html: insightRow('warn', `توقف در ${name}`, `${fmt(t.sessionsSincePr)} جلسه است رکوردت رو نزدی (${fmt(t.daysSincePr)} روز).`) });
-    } else if (t.status === 'up') {
-      improving.push({ name, pct: t.pct });
-    }
-  }
-  // Problems get a row each; progress is one summary row so it doesn't bury them.
-  if (improving.length) {
-    const top = improving.sort((a, b) => b.pct - a.pct).slice(0, 3).map((x) => `${x.name} (${fmt(x.pct)}٪)`).join('، ');
-    rows.push({ rank: 3, html: insightRow('good', `${fmt(improving.length)} حرکت در حال پیشرفت`, `بیشترین پیشرفت در ۳ جلسه آخر: ${top}`) });
-  }
-  const untrained = Object.keys(REGIONS).filter((r) => !programLoad(state.days, state.exercises, state.settings.cycle?.rest)[r]);
-  if (untrained.length) {
-    rows.push({ rank: 2, html: insightRow('info', 'بدون کار مستقیم در برنامه', `${untrained.map((r) => REGIONS[r]).join('، ')}. اگه عمدیه مشکلی نیست.`) });
-  }
-  if (c.journey.planned >= 6 && c.journey.adherence >= 85) {
-    rows.push({ rank: 3, html: insightRow('good', 'پایبندی خوب', `از ${fmt(c.journey.planned)} جلسه برنامه فقط ${fmt(c.journey.missed)} جلسه رو نرفتی.`) });
-  }
-  return rows.sort((x, y) => x.rank - y.rank).map((r) => r.html);
+function factsCard(c) {
+  const all = buildFacts({
+    histories: c.histories,
+    names: new Map(state.exercises.map((e) => [e.id, e.name])),
+    daily: state.daily,
+    trackers: state.settings.trackers,
+    attended: c.logged,
+    today: c.end,
+  });
+  const topics = TOPICS.filter(([k]) => k === 'all' || all.some((f) => f.topic === k));
+  if (!topics.some(([k]) => k === view.topic)) view.topic = 'all';
+  const list = view.topic === 'all' ? all : all.filter((f) => f.topic === view.topic);
+  const shown = view.allFacts ? list : list.slice(0, 6);
+  return `<section class="card">
+    <h2>${icons.spark} نکته‌ها از داده‌های تو</h2>
+    ${all.length ? `${topics.length > 2 ? `<div class="chips mini" role="group" aria-label="موضوع">${topics.map(([k, l]) => `<button class="chip" aria-pressed="${view.topic === k}" data-act="facts-topic" data-topic="${k}">${l}</button>`).join('')}</div>` : ''}
+      <ul class="insights">${shown.map(factRow).join('')}</ul>
+      ${list.length > shown.length ? `<button class="btn ghost full small" data-act="facts-more">${fmt(list.length - shown.length)} نکته دیگه</button>` : ''}`
+      : '<p class="muted">هر چی بیشتر ست، وزن بدن و عادت‌هات رو ثبت کنی، اینجا نکته‌های بیشتری از روند خودت می‌بینی: تغییر وزن، رکوردها، مقایسه حرکت‌ها و عوض شدن عادت‌ها از هفته‌ای به هفته دیگه.</p>'}
+  </section>`;
 }
 
 function overviewSection(c) {
@@ -164,7 +165,6 @@ function overviewSection(c) {
   const homeTo = addDays(journeyOf().gymFrom, -1);
   const cellKind = (d) => (loggedSet.has(d) ? 'on' : planSet.has(d) ? 'plan' : d >= journeyOf().homeFrom && d <= homeTo ? 'home' : '');
   const heatWeeks = Math.min(26, Math.max(14, Math.ceil(diffDays(c.end, journeyOf().homeFrom) / 7) + 1));
-  const insights = buildInsights(c);
   const hasVolume = weeks.some((w) => w.volume > 0);
 
   return `<div class="tiles">
@@ -174,11 +174,7 @@ function overviewSection(c) {
       ${tile('رکورد جدید', fmt(prs))}
     </div>
 
-    <section class="card">
-      <h2>عیب‌یابی</h2>
-      ${insights.length ? `<ul class="insights">${insights.join('')}</ul>` : ''}
-      ${c.histories.size ? '' : '<p class="muted">روند هر حرکت از وقتی شروع می‌شه که ست‌ها رو ثبت کنی. برای تشخیص توقف یا افت، حداقل ۴ جلسه از هر حرکت لازمه.</p>'}
-    </section>
+    ${factsCard(c)}
 
     <section class="card">
       <h2>تقویم تمرین</h2>
@@ -253,6 +249,50 @@ function bodySection(c) {
       <p class="caption">حرکت‌های کمکی نصف یک ست حساب شدن. عددها ${esc(unit)} هستن.</p>` : '<p class="muted">توی این نما داده‌ای نیست.</p>'}
     ${idle.length && ranked.length ? `<p class="caption">بدون کار: ${idle.map((r) => REGIONS[r]).join('، ')}</p>` : ''}
   </section>`;
+}
+
+function weightSection(c) {
+  const tracker = state.settings.trackers.find((t) => t.id === 'bodyweight');
+  if (!tracker || tracker.archived) {
+    return '<div class="card empty"><h2>ثبت وزن خاموشه</h2><p>«وزن بدن» از لیست موارد روزانه حذف شده. از تنظیمات دوباره اضافه‌اش کن.</p><a class="btn primary" href="#settings">تنظیمات</a></div>';
+  }
+  const all = weightSeries(state.daily);
+  const series = all.filter((p) => p.date >= c.from && p.date <= c.end);
+  const todayValue = state.daily[c.end]?.values?.bodyweight;
+  const input = `<section class="card weight-input">
+    <div><h2>وزن امروز</h2><small class="muted">صبح، ناشتا و قبل از تمرین دقیق‌تره</small></div>
+    <div class="stepper">
+      <button class="icon-btn" data-act="weight-step" data-n="0.1" aria-label="بیشتر">${icons.plus}</button>
+      <input class="num" inputmode="decimal" aria-label="وزن امروز به کیلو" data-change="weight-today" value="${todayValue ?? ''}" placeholder="${all.at(-1)?.y ?? 'کیلو'}">
+      <button class="icon-btn" data-act="weight-step" data-n="-0.1" aria-label="کمتر">${icons.minus}</button>
+    </div>
+  </section>`;
+  if (!all.length) return `${input}<div class="card empty"><h2>هنوز وزنی ثبت نشده</h2><p>هر چند روز یه بار وزنت رو ثبت کن تا نمودار بالا و پایین رفتنش اینجا ساخته بشه.</p></div>`;
+  const span = view.range || Math.max(1, diffDays(c.end, all[0].date));
+  const s = weightStats(series.length ? series : all, c.end, span);
+  const avg = movingAverage(all).filter((p) => p.date >= c.from);
+  const width = chartWidth();
+  return `${input}
+    <div class="tiles">
+      ${tile('وزن فعلی', `${fmt(s.last.y)} <small>کیلو</small>`, `<small class="delta">${esc(fmtShort(s.last.date))}</small>`)}
+      ${tile('تغییر در بازه', `${s.change >= 0 ? '+' : '−'}${fmt(Math.abs(s.change))} <small>کیلو</small>`, `<small class="delta">در ${fmt(s.days)} روز</small>`)}
+      ${tile('کمترین', `${fmt(s.min.y)} <small>کیلو</small>`, `<small class="delta">${esc(fmtShort(s.min.date))}</small>`)}
+      ${tile('بیشترین', `${fmt(s.max.y)} <small>کیلو</small>`, `<small class="delta">${esc(fmtShort(s.max.date))}</small>`)}
+    </div>
+    <section class="card">
+      <h2>${icons.scale} روند وزن</h2>
+      ${series.length ? lineChart({
+        points: series.map((p) => ({ date: p.date, y: p.y, mark: true, tip: `${fmtShort(p.date)}: ${fmt(p.y)} کیلو` })),
+        trend: series.length > 2 ? avg : null,
+        width,
+        height: 220,
+        label: 'نمودار وزن بدن',
+        format: fmt,
+      }) : '<p class="muted">توی این بازه وزنی ثبت نشده.</p>'}
+      <div class="legend"><span><i class="cell on"></i>هر بار ثبت</span>${series.length > 2 ? '<span><i class="cell home"></i>میانگین ۷ روزه</span>' : ''}</div>
+      <p class="caption">وزن روزانه با آب و غذا بالا و پایین می‌ره. خط نارنجی میانگین هفتگیه و روند واقعی رو بهتر نشون می‌ده.</p>
+      ${tableView(['تاریخ', 'وزن', 'تغییر'], [...series].reverse().map((p, i, arr) => [fmtShort(p.date), fmt(p.y), arr[i + 1] ? `${p.y - arr[i + 1].y >= 0 ? '+' : '−'}${fmt(Math.abs(p.y - arr[i + 1].y))}` : '–']))}
+    </section>`;
 }
 
 function exerciseSection(c) {
@@ -387,7 +427,7 @@ export function dashboardView() {
   resetCharts();
   const c = collect();
   const showRange = view.section !== 'body' || view.bodyMode === 'logged';
-  const content = { overview: overviewSection, body: bodySection, exercises: exerciseSection, habits: habitSection }[view.section](c);
+  const content = { overview: overviewSection, weight: weightSection, body: bodySection, exercises: exerciseSection, habits: habitSection }[view.section](c);
   return `<div class="page-head"><h1>گزارش پیشرفت</h1><a class="icon-btn" href="#settings" aria-label="تنظیمات">${icons.gear}</a></div>
     ${journeyCard(c)}
     <div class="segments" role="group" aria-label="بخش آمار">${SECTIONS.map(([k, l]) => `<button aria-pressed="${view.section === k}" data-act="stats-section" data-section="${k}">${l}</button>`).join('')}</div>
@@ -396,6 +436,24 @@ export function dashboardView() {
 }
 
 export const dashboardActions = {
+  'facts-topic': (el) => {
+    view.topic = el.dataset.topic;
+    view.allFacts = false;
+    app.render();
+  },
+  'facts-more': () => {
+    view.allFacts = true;
+    app.render();
+  },
+  'weight-step': (el) => {
+    const t = today();
+    const rec = ensureDaily(t);
+    const series = weightSeries(state.daily);
+    const base = rec.values.bodyweight ?? series.at(-1)?.y ?? 70;
+    rec.values.bodyweight = Math.max(20, Math.round((base + Number(el.dataset.n)) * 10) / 10);
+    saveDaily(t);
+    app.render();
+  },
   'stats-range': (el) => {
     view.range = Number(el.dataset.n);
     app.render();
@@ -421,6 +479,14 @@ export const dashboardActions = {
 };
 
 export const dashboardChanges = {
+  'weight-today': (el) => {
+    const v = parseNum(el.value);
+    const rec = ensureDaily(today());
+    if (v > 0) rec.values.bodyweight = v;
+    else delete rec.values.bodyweight;
+    saveDaily(today());
+    app.render();
+  },
   'stats-exercise': (el) => {
     view.exercise = el.value;
     app.render();

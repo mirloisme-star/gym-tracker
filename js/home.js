@@ -1,6 +1,7 @@
 // Home: the coach's note, this week at a glance and today's workout.
 import { REGIONS, regionsFor } from './body-map.js';
 import { coachBusy, coachError, generateCoach, hasKey } from './coach.js';
+import { weightSeries, weightStats } from './facts.js';
 import { photoButton } from './photo.js';
 import { attendanceStats, buildHistories, hasWork, suggestDay, workSets } from './stats.js';
 import { attended, attendedDates, exerciseById, sessionList, setText, state, timeIds } from './store.js';
@@ -131,6 +132,30 @@ function todayCard() {
   </section>`;
 }
 
+function spark(series, w = 120, h = 40) {
+  const ys = series.map((p) => p.y);
+  const lo = Math.min(...ys);
+  const hi = Math.max(...ys);
+  const pts = series.map((p, i) => `${((i / Math.max(1, series.length - 1)) * (w - 4) + 2).toFixed(1)},${(h - 4 - ((p.y - lo) / (hi - lo || 1)) * (h - 8)).toFixed(1)}`);
+  return `<svg class="spark" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true"><polyline points="${pts.join(' ')}"/><circle r="3.5" cx="${pts.at(-1).split(',')[0]}" cy="${pts.at(-1).split(',')[1]}"/></svg>`;
+}
+
+function weightCard() {
+  const tracker = state.settings.trackers.find((t) => t.id === 'bodyweight' && !t.archived);
+  if (!tracker) return '';
+  const series = weightSeries(state.daily).filter((p) => p.date >= addDays(today(), -60));
+  if (!series.length) {
+    return `<a class="card weight-card" href="#stats" data-act="stats-section" data-section="weight">
+      <span class="mini-stat">${icons.scale}<span><b>وزن بدن</b><small>وزنت رو ثبت کن تا نمودارش ساخته بشه</small></span></span>${icons.left}</a>`;
+  }
+  const s = weightStats(series, today());
+  return `<a class="card weight-card" href="#stats" data-act="stats-section" data-section="weight">
+    <span class="mini-stat">${icons.scale}<span><b>${fmt(s.last.y)} <small>کیلو</small></b>
+      <small>${s.days ? `${s.change >= 0 ? '+' : '−'}${fmt(Math.abs(s.change))} کیلو در ${fmt(s.days)} روز` : 'وزن بدن'}</small></span></span>
+    ${series.length > 1 ? spark(series) : ''}
+  </a>`;
+}
+
 function recentRecords() {
   const histories = buildHistories(sessionList().filter(hasWork), timeIds());
   const rows = [];
@@ -174,6 +199,7 @@ export function homeView() {
       ${weekStrip()}
     </section>
     ${todayCard()}
+    ${weightCard()}
     ${recentRecords()}`;
 }
 

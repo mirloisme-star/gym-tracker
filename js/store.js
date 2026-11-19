@@ -1,4 +1,5 @@
 // IndexedDB persistence. Everything is held in memory and written through on each change.
+import { libraryEntry } from './library.js';
 import { hasWork, sortedSessions } from './stats.js';
 import { addDays, fmt, uid } from './util.js';
 
@@ -116,6 +117,7 @@ export const savePhoto = (date) => write('photos', (s) => s.put(state.photos[dat
 export const saveCoach = () => write('meta', (s) => s.put(state.coach, 'coach'));
 
 export const exerciseById = (id) => state.exercises.find((e) => e.id === id);
+export const enName = (ex) => ex?.en || libraryEntry(ex?.name)?.en || '';
 export const sessionList = () => sortedSessions(state.sessions);
 
 export function setText(ex, s) {

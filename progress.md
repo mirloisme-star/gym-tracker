@@ -48,6 +48,8 @@ A personal gym tracker for one user, used on an Android phone at the gym. It is 
 - Logs gym attendance, supplements, coffee, sleep, body weight, energy and nutrition, plus a free note.
 
 ### Stats tab
+- **Weight (new):** a log-today input, current/change/min/max tiles, and a chart of every entry with a 7-day moving average (`js/facts.js`). Home shows a weight card with a sparkline.
+- **Facts from your data (new, replaces troubleshooting):** built from the user's own logs in `js/facts.js`: weight change and sudden swings, volume vs the previous 7 days, heaviest lift, records this month vs last, record jumps of 10%+, sudden drops, best vs worst progressing exercise over 60 days, stalled lifts, sessions and habits (sleep, coffee, supplements…) vs the previous 7 days. Filterable by topic.
 - **Journey card:** adherence, the day count since the start, and a timeline of the home phase and the gym phase.
 - **Overview:** sessions per week, total volume, records, a weekly chart and an attendance heatmap.
 - **Body:** the front and back muscle map in three modes (program per week, today, logged). Each muscle is coloured by sets per week, and tapping one shows its sets and exercises.
@@ -55,6 +57,7 @@ A personal gym tracker for one user, used on an Android phone at the gym. It is 
 - **Habits:** compares sessions on days with and without a habit, for example coffee. A habit needs at least 4 sessions in each group.
 
 ### Program tab
+- **Exercise library (new):** 181 exercises in `js/library.js`, each with a Persian and English name, muscle group, body-chart regions and log type. The picker (`js/picker.js`) searches both languages (tolerant of Arabic ی/ک and half-spaces), filters by muscle, adds several at once, and still allows a custom exercise. Timed and cardio picks get matching default targets. English names show under exercise names.
 - Edit days and exercises, including name, muscle, type, sets, reps (`12`, `8-12` or `8,10,12`), rest and treadmill speed.
 
 ### Settings
@@ -73,7 +76,7 @@ A personal gym tracker for one user, used on an Android phone at the gym. It is 
 - Vanilla JavaScript with ES modules and no build step. Data is stored in IndexedDB.
 - The interface is right-to-left Persian. It uses the Vazirmatn font with Persian digits and the Persian calendar.
 - After any change, bump `VERSION` in `sw.js`, and add new files to its `FILES` list.
-- Tests: `npm test` (19 tests, all passing).
+- Tests: `npm test` (22 tests, all passing).
 - **Muscle artwork:** from `react-native-body-highlighter` (MIT License, © 2022 ELABBASSI Hicham). `js/body-paths.js` is built with `node tools/build-body-paths.cjs <package folder>`.
   - The artwork has one deltoid per view. `js/body-svg.js` cuts it into the side head and the front or rear head.
   - The infraspinatus counts as rear delt.

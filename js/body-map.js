@@ -1,4 +1,5 @@
 // Which regions of the body chart each exercise trains, and how many sets they get. Pure, no DOM.
+import { libraryEntry } from './library.js';
 import { workSets } from './stats.js';
 
 export const REGIONS = {
@@ -76,7 +77,8 @@ const BY_MUSCLE = {
   'شکم': [['abs'], ['obliques']],
 };
 
-export const regionsFor = (ex) => BY_NAME[ex?.name] || BY_MUSCLE[ex?.muscle] || [[], []];
+// Named exercises first, then the library, then the muscle picked for a custom exercise.
+export const regionsFor = (ex) => BY_NAME[ex?.name] || libraryEntry(ex?.name)?.regions || BY_MUSCLE[ex?.muscle] || [[], []];
 
 function addSets(load, ex, sets) {
   const [primary, secondary] = regionsFor(ex);

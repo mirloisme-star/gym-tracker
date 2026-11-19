@@ -1,5 +1,6 @@
-import { KINDS, MUSCLES, exerciseById, kindOf, saveMeta, state } from './store.js';
-import { app, icons, pickExercise, toast } from './ui.js';
+import { KINDS, MUSCLES, enName, exerciseById, kindOf, saveMeta, state } from './store.js';
+import { openPicker } from './picker.js';
+import { app, icons, toast } from './ui.js';
 import { WEEKDAYS, esc, fmt, parseNum, parseRepsText, repsToText, uid } from './util.js';
 
 const move = (arr, i, delta) => {
@@ -43,6 +44,7 @@ function itemCard(day, item, i) {
       <button class="icon-btn" data-act="item-move" data-day="${day.id}" data-i="${i}" data-n="1" ${i === day.items.length - 1 ? 'disabled' : ''} aria-label="پایین‌تر">${icons.down}</button>
       <button class="icon-btn" data-act="item-del" data-day="${day.id}" data-i="${i}" aria-label="حذف از برنامه">${icons.trash}</button>
     </div>
+    ${enName(ex) ? `<small class="item-en" dir="ltr">${esc(enName(ex))}</small>` : ''}
     <div class="mini-grid">
       ${num('sets', 'ست', item.sets)}
       <label class="mini-field"><span>${kindOf(ex).reps}</span>
@@ -101,14 +103,19 @@ export const programActions = {
   },
   'item-add': (el) => {
     const day = dayOf(el);
-    pickExercise('افزودن حرکت', (ex) => {
-      if (day.items.some((it) => it.exerciseId === ex.id)) {
-        toast('این حرکت توی همین روز هست');
-        return;
+    openPicker(`افزودن حرکت به ${day.name}`, (list) => {
+      const fresh = list.filter((ex) => !day.items.some((it) => it.exerciseId === ex.id));
+      for (const ex of fresh) {
+        // Timed and cardio work get sensible starting targets instead of 8–12 reps.
+        const target = ex.kind === 'sec' ? { sets: 3, repsMin: 30, repsMax: 30, rest: 60 }
+          : ex.kind === 'min' || ex.kind === 'cardio' ? { sets: 1, repsMin: 10, repsMax: 10, rest: 0 }
+          : { sets: 3, repsMin: 8, repsMax: 12, rest: state.settings.defaultRest };
+        day.items.push({ exerciseId: ex.id, note: '', ...target });
       }
-      day.items.push({ exerciseId: ex.id, sets: 3, repsMin: 8, repsMax: 12, rest: state.settings.defaultRest, note: '' });
       saveMeta('days');
       app.render();
+      if (fresh.length < list.length) toast(`${fmt(list.length - fresh.length)} حرکت از قبل توی همین روز بود`);
+      else toast(`${fmt(fresh.length)} حرکت اضافه شد`, 'win');
     });
   },
   'item-move': (el) => {

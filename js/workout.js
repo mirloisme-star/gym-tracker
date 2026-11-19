@@ -3,9 +3,10 @@ import { bodyChart } from './body-svg.js';
 import { sessionSummary } from './home.js';
 import { photoButton } from './photo.js';
 import { buildHistories, hasWork, setScore, suggestDay, workSets } from './stats.js';
-import { ensureEntry, ensureSession, exerciseById, kindOf, saveSession, sessionList, setText, state, timeIds } from './store.js';
+import { enName, ensureEntry, ensureSession, exerciseById, kindOf, saveSession, sessionList, setText, state, timeIds } from './store.js';
 import { restLabel, startTimer, stopTimer } from './timer.js';
-import { app, dateBar, icons, pickExercise, toast, ui } from './ui.js';
+import { openPicker } from './picker.js';
+import { app, dateBar, icons, toast, ui } from './ui.js';
 import { esc, fmt, fmtCompact, fmtShort, parseNum, today } from './util.js';
 
 // A day picked before anything is logged; there's no session to hold it yet.
@@ -84,7 +85,7 @@ function exerciseCard(exId, item, entry, hist) {
   }
   return `<article class="card ex-card ${finished ? 'finished' : ''}" id="ex-${exId}">
     <header>
-      <button class="ex-name" data-act="ex-stats" data-ex="${exId}">${esc(ex.name)}</button>
+      <button class="ex-name" data-act="ex-stats" data-ex="${exId}">${esc(ex.name)}${enName(ex) ? `<small dir="ltr">${esc(enName(ex))}</small>` : ''}</button>
       <span class="ex-count">${fmt(doneCount)}/${fmt(rows)}</span>
     </header>
     ${item ? `<p class="ex-target">${targetText(item, ex)}</p>` : ''}
@@ -276,11 +277,11 @@ export const workoutActions = {
     app.render();
   },
   'ex-add': () => {
-    pickExercise('افزودن حرکت به جلسه', (ex) => {
-      ensureEntry(ui.date, ex.id, currentDayId(ui.date));
+    openPicker('افزودن حرکت به جلسه', (list) => {
+      list.forEach((ex) => ensureEntry(ui.date, ex.id, currentDayId(ui.date)));
       saveSession(ui.date);
       app.render();
-      document.getElementById(`ex-${ex.id}`)?.scrollIntoView({ block: 'center' });
+      document.getElementById(`ex-${list[0].id}`)?.scrollIntoView({ block: 'center' });
     });
   },
 };

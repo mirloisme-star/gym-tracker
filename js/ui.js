@@ -1,5 +1,4 @@
-// Shared UI plumbing: rendering hook, toasts, icons, the date bar and the exercise dialog.
-import { KINDS, MUSCLES, findOrCreateExercise, state } from './store.js';
+// Shared UI plumbing: rendering hook, toasts, icons and the date bar.
 import { addDays, esc, fmtLong, today } from './util.js';
 
 export const app = { render: () => {} };
@@ -46,6 +45,7 @@ export const icons = {
   calendar: svg('<rect x="4" y="5" width="16" height="15" rx="3"/><path d="M4 10h16M9 3v4M15 3v4"/>'),
   refresh: svg('<path d="M19.5 12a7.5 7.5 0 11-2.2-5.3M19.5 4.5v4h-4"/>'),
   key: svg('<circle cx="8" cy="15" r="4"/><path d="M11 12l8-8M16 7l2 2M14 9l2 2"/>'),
+  scale: svg('<rect x="3.5" y="4" width="17" height="16" rx="4"/><path d="M8.5 9.5a5 5 0 017 0M12 12.5l1.5-3"/>'),
   flag: svg('<path d="M5 21V4M5 4h12l-2 4 2 4H5"/>'),
 };
 
@@ -74,32 +74,3 @@ export const dateActions = {
     app.render();
   },
 };
-
-// Picking an existing name reuses that exercise, which keeps its history connected.
-export function pickExercise(title, onPick) {
-  const dlg = document.getElementById('dialog');
-  dlg.className = '';
-  dlg.innerHTML = `<form method="dialog">
-    <h2>${esc(title)}</h2>
-    <label class="field"><span>اسم حرکت</span>
-      <input id="ex-name" list="ex-names" autocomplete="off" required>
-      <datalist id="ex-names">${state.exercises.map((e) => `<option value="${esc(e.name)}">`).join('')}</datalist>
-    </label>
-    <label class="field"><span>عضله اصلی</span>
-      <select id="ex-muscle">${MUSCLES.map((m) => `<option>${m}</option>`).join('')}</select>
-    </label>
-    <label class="field"><span>نوع ثبت</span>
-      <select id="ex-kind">${Object.entries(KINDS).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('')}</select>
-    </label>
-    <div class="row-end">
-      <button type="button" class="btn ghost" id="ex-cancel">انصراف</button>
-      <button type="submit" class="btn primary">افزودن</button>
-    </div>
-  </form>`;
-  dlg.querySelector('#ex-cancel').onclick = () => dlg.close();
-  dlg.querySelector('form').onsubmit = () => {
-    const name = dlg.querySelector('#ex-name').value;
-    if (name.trim()) onPick(findOrCreateExercise(name, dlg.querySelector('#ex-muscle').value, dlg.querySelector('#ex-kind').value));
-  };
-  dlg.showModal();
-}

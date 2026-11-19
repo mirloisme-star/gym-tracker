@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { dayLoad, levelOf, programLoad } from '../js/body-map.js';
+import { dayLoad, levelOf, programLoad, regionsFor } from '../js/body-map.js';
 import { attendanceStats, buildHistories, e1rm, exerciseTrend, habitImpact, journeyStats, performanceByDate, setScore, suggestDay, weeklySeries } from '../js/stats.js';
+import { buildFacts, movingAverage, weightSeries, weightStats } from '../js/facts.js';
+import { LIBRARY, libraryEntry, searchLibrary } from '../js/library.js';
 import { freshJourney } from '../js/store.js';
 import { addDays, parseNum, parseRepsText, repsToText, weekStart } from '../js/util.js';
 
@@ -195,4 +197,57 @@ test('a new user starts with no reported history and counts only logged days', (
   assert.equal(later.sessions, 2);
   assert.equal(later.missed, 2);
   assert.equal(suggestDay([{ id: 'a' }, { id: 'b' }], [], '2026-11-19', { start: null, rest: 1 }), 'a');
+});
+
+test('weight series, stats and moving average come from the daily log', () => {
+  const daily = {
+    '2026-10-01': { date: '2026-10-01', values: { bodyweight: 80 } },
+    '2026-10-20': { date: '2026-10-20', values: { bodyweight: 79 } },
+    '2026-11-10': { date: '2026-11-10', values: { bodyweight: 78.5 } },
+    '2026-11-11': { date: '2026-11-11', values: { bodyweight: 76.5 } },
+    '2026-11-12': { date: '2026-11-12', values: { coffee: 2 } },
+  };
+  const series = weightSeries(daily);
+  assert.deepEqual(series.map((p) => p.y), [80, 79, 78.5, 76.5]);
+  const s = weightStats(series, '2026-11-12', 30);
+  assert.equal(s.base.y, 80); // the latest entry on or before 30 days ago (13 Oct)
+  assert.equal(s.change, -3.5);
+  assert.equal(s.min.y, 76.5);
+  assert.equal(movingAverage(series).at(-1).y, 77.5); // 10th and 11th fall in the same week
+  const facts = buildFacts({ histories: new Map(), names: new Map(), daily, trackers: [{ id: 'bodyweight', type: 'number' }], attended: [], today: '2026-11-12' });
+  assert.ok(facts.some((f) => f.topic === 'weight' && f.title.includes('کم شد')));
+  assert.ok(facts.some((f) => f.title.startsWith('تغییر ناگهانی وزن')));
+});
+
+test('facts report record jumps, drops, comparisons and habit changes', () => {
+  const sessions = [
+    session('2026-10-20', [set(40, 10)], 'bench'), session('2026-10-25', [set(40, 10)], 'bench'),
+    session('2026-10-30', [set(42.5, 10)], 'bench'), session('2026-11-08', [set(50, 10)], 'bench'),
+    session('2026-10-20', [set(60, 10)], 'squat'), session('2026-10-27', [set(62.5, 10)], 'squat'),
+    session('2026-11-03', [set(65, 10)], 'squat'), session('2026-11-11', [set(50, 8)], 'squat'),
+  ];
+  const histories = buildHistories(sessions);
+  const names = new Map([['bench', 'پرس سینه'], ['squat', 'اسکات']]);
+  const daily = {};
+  for (let i = 0; i < 14; i++) {
+    const d = addDays('2026-11-12', -i);
+    daily[d] = { date: d, values: { sleep: i < 7 ? 6 : 7.5 } };
+  }
+  const facts = buildFacts({ histories, names, daily, trackers: [{ id: 'sleep', name: 'خواب', type: 'number', unit: 'ساعت' }], attended: ['2026-11-08', '2026-11-11', '2026-11-03'], today: '2026-11-12' });
+  const titles = facts.map((f) => f.title);
+  assert.ok(titles.some((t) => t.startsWith('جهش در پرس سینه')));
+  assert.ok(titles.some((t) => t.startsWith('افت ناگهانی در اسکات')));
+  assert.ok(titles.some((t) => t.startsWith('بیشترین پیشرفت: پرس سینه')));
+  assert.ok(titles.some((t) => t.startsWith('سنگین‌ترین وزنه‌ات')));
+  assert.ok(facts.some((f) => f.topic === 'habits' && f.title.startsWith('خواب') && f.detail.includes('کمتر')));
+});
+
+test('the exercise library searches Persian and English and feeds the body chart', () => {
+  assert.ok(LIBRARY.length >= 150);
+  assert.equal(new Set(LIBRARY.map((x) => x.fa)).size, LIBRARY.length);
+  assert.ok(searchLibrary('squat').some((x) => x.fa === 'اسکات هالتر'));
+  assert.ok(searchLibrary('پرس سینه').every((x) => x.fa.includes('پرس') && x.fa.includes('سینه')));
+  assert.equal(searchLibrary('incline dumbbell press')[0].fa, 'پرس بالاسینه دمبل');
+  assert.equal(libraryEntry('پرس سينه هالتر')?.en, 'Barbell Bench Press'); // Arabic ي still matches
+  assert.deepEqual(regionsFor({ name: 'فیس پول', muscle: 'سرشانه' })[0], ['rearDelt', 'traps']);
 });

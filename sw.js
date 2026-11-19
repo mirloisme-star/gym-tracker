@@ -1,5 +1,5 @@
 // Bump VERSION whenever any file below changes, so phones pick up the new build.
-const VERSION = 'gym-v6';
+const VERSION = 'gym-v8';
 const FILES = [
   '.',
   'index.html',
@@ -14,9 +14,12 @@ const FILES = [
   'js/coach-prompt.js',
   'js/daily.js',
   'js/dashboard.js',
+  'js/facts.js',
   'js/home.js',
+  'js/library.js',
   'js/onboarding.js',
   'js/photo.js',
+  'js/picker.js',
   'js/program.js',
   'js/settings.js',
   'js/stats.js',
@@ -36,7 +39,8 @@ const FILES = [
 ];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(VERSION).then((c) => c.addAll(FILES)).then(() => self.skipWaiting()));
+  // cache: 'reload' skips the browser's HTTP cache, which can still hold the previous build.
+  e.waitUntil(caches.open(VERSION).then((c) => c.addAll(FILES.map((f) => new Request(f, { cache: 'reload' })))).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (e) => {
